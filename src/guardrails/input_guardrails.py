@@ -11,6 +11,7 @@ Status convention (không dùng True/False mơ hồ):
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Literal
 
 from google.genai import types
@@ -81,28 +82,21 @@ def detect_injection(user_input: str) -> InputStatus:
 # ============================================================
 
 def topic_filter(user_input: str) -> InputStatus:
-    """Decide whether the input is on-topic for VinBank.
+    """Decide whether the input is on-topic for VinBank."""
+    # 1. Chuyển tiếng Việt có dấu thành không dấu để khớp với ALLOWED_TOPICS
+    nfkd = unicodedata.normalize("NFD", user_input)
+    input_clean = "".join(c for c in nfkd if unicodedata.category(c) != "Mn").replace("đ", "d").replace("Đ", "D").lower()
 
-    Args:
-        user_input: The user's message
-
-    Returns:
-        ``"BLOCK"`` = chặn (off-topic hoặc topic cấm).
-        ``"ALLOW"`` = cho qua (câu banking hợp lệ).
-    """
-    input_lower = user_input.lower()
-
-    # 1. Nếu dính bất kỳ từ khóa cấm nào -> CHẶN
+    # 2. Chặn nếu có từ khóa cấm
     for blocked in BLOCKED_TOPICS:
-        if blocked in input_lower:
-            return "BLOCK"
-
-    # 2. Nếu KHÔNG chứa bất kỳ từ khóa ngân hàng hợp lệ nào -> CHẶN (Lạc đề)
-    has_allowed = any(allowed in input_lower for allowed in ALLOWED_TOPICS)
-    if not has_allowed:
+      if blocked in input_clean:
         return "BLOCK"
 
-    # 3. Hợp lệ -> CHO QUA
+    # 3. Cho qua nếu có từ khóa ngân hàng
+    has_allowed = any(allowed in input_clean for allowed in ALLOWED_TOPICS)
+    if not has_allowed:
+      return "BLOCK"
+
     return "ALLOW"
 
 
